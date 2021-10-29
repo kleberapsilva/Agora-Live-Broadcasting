@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:agorartm/firebaseDB/firestoreDB.dart';
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:agora_rtc_engine/rtc_engine.dart';
 import 'package:agora_rtm/agora_rtm.dart';
 import 'package:agorartm/models/message.dart';
 import 'package:agorartm/models/user.dart';
@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../utils/settings.dart';
 import 'package:wakelock/wakelock.dart';
+import 'package:agora_rtc_engine/rtc_local_view.dart' as RtcLocalView;
+import 'package:agora_rtc_engine/rtc_remote_view.dart' as RtcRemoteView;
 import 'dart:math' as math;
 
 import '../HearAnim.dart';
@@ -21,25 +23,26 @@ class CallPage extends StatefulWidget {
 
   final String image;
   final time;
+
   /// Creates a call page with given channel name.
-  const CallPage({Key key, this.channelName, this.time,this.image}) : super(key: key);
+  const CallPage({Key key, this.channelName, this.time, this.image}) : super(key: key);
 
   @override
   _CallPageState createState() => _CallPageState();
 }
 
-class _CallPageState extends State<CallPage>{
+class _CallPageState extends State<CallPage> {
   static final _users = <int>[];
   String channelName;
   List<User> userList = [];
 
-  bool _isLogin = true;
-  bool _isInChannel = true;
+  bool _isLogin = false;
+  bool _isInChannel = false;
   int userNo = 0;
-  var userMap ;
+  var userMap;
   var tryingToEnd = false;
   bool personBool = false;
-  bool accepted =false;
+  bool accepted = false;
 
   final _channelMessageController = TextEditingController();
 
@@ -55,16 +58,17 @@ class _CallPageState extends State<CallPage>{
   Timer _timer;
   double height = 0.0;
   int _numConfetti = 5;
-  int guestID=-1;
-  bool waiting=false;
+  int guestID = -1;
+  bool waiting = false;
+  RtcEngine _engine;
 
   @override
   void dispose() {
     // clear users
     _users.clear();
     // destroy sdk
-    AgoraRtcEngine.leaveChannel();
-    AgoraRtcEngine.destroy();
+    _engine.leaveChannel();
+    _engine.destroy();
     super.dispose();
   }
 
@@ -77,84 +81,154 @@ class _CallPageState extends State<CallPage>{
     _createClient();
   }
 
-
-
-
-
   Future<void> initialize() async {
-
     await _initAgoraRtcEngine();
     _addAgoraEventHandlers();
-    await AgoraRtcEngine.enableWebSdkInteroperability(true);
-    await AgoraRtcEngine.setParameters(
-        '''{\"che.video.lowBitRateStreamParameter\":{\"width\":320,\"height\":180,\"frameRate\":15,\"bitRate\":140}}''');
-    await AgoraRtcEngine.joinChannel(null, widget.channelName, null, 0);
+    // await _engine.enableWebSdkInteroperability(true);
+    await _engine.setParameters('''{\"che.video.lowBitRateStreamParameter\":{\"width\":320,\"height\":180,\"frameRate\":15,\"bitRate\":140}}''');
+    await _engine.joinChannel(null, widget.channelName, null, 0);
   }
 
   /// Create agora sdk instance and initialize
   Future<void> _initAgoraRtcEngine() async {
-    await AgoraRtcEngine.create(APP_ID);
-    await AgoraRtcEngine.enableVideo();
-    await AgoraRtcEngine.enableLocalAudio(true);
+    //await _engine.create(APP_ID);
 
+    _engine = await RtcEngine.createWithContext(RtcEngineContext(appId));
+    // _engine = await RtcEngine.createWithConfig(RtcEngineConfig(APP_ID));
+    await _engine.enableVideo();
+    await _engine.setChannelProfile(ChannelProfile.LiveBroadcasting);
+    await _engine.enableLocalAudio(true);
+    await _engine.setClientRole(ClientRole.Broadcaster);
   }
 
   /// Add agora event handlers
+  // void _addAgoraEventHandlers() {
+  //   _engine.onJoinChannelSuccess = (
+  //     String channel,
+  //     int uid,
+  //     int elapsed,
+  //   ) async {
+  //     final documentId = widget.channelName;
+  //     channelName = documentId;
+  //     FireStoreClass.createLiveUser(name: documentId, id: uid, time: widget.time, image: widget.image);
+  //     // The above line create a document in the firestore with username as documentID
+
+  //     await Wakelock.enable();
+  //     // This is used for Keeping the device awake. Its now enabled
+  //   };
+
+  //   _engine.onLeaveChannel = () {
+  //     setState(() {
+  //       _users.clear();
+  //     });
+  //   };
+
+  //   _engine.onUserJoined = (int uid, int elapsed) {
+  //     setState(() {
+  //       _users.add(uid);
+  //     });
+  //   };
+
+  //   _engine.onUserOffline = (int uid, int reason) {
+  //     if (uid == guestID) {
+  //       setState(() {
+  //         accepted = false;
+  //       });
+  //     }
+  //     setState(() {
+  //       _users.remove(uid);
+  //     });
+  //   };
+  // }
+  /// Add agora event handlers
   void _addAgoraEventHandlers() {
-
-    AgoraRtcEngine.onJoinChannelSuccess = (
-      String channel,
-      int uid,
-      int elapsed,
-    ) async{
-
+    _engine.setEventHandler(RtcEngineEventHandler(error: (code) {
+      setState(() {
+        final info = 'onError: $code';
+        //_infoStrings.add(info);
+        _log(info: info, type: 'onError');
+      });
+    }, joinChannelSuccess: (channel, uid, elapsed) {
       final documentId = widget.channelName;
-      channelName= documentId;
-      FireStoreClass.createLiveUser(name: documentId,id: uid,time: widget.time,image:widget.image);
+      channelName = documentId;
+      FireStoreClass.createLiveUser(name: documentId, id: uid, time: widget.time, image: widget.image);
       // The above line create a document in the firestore with username as documentID
 
-      await Wakelock.enable();
+      Wakelock.enable();
       // This is used for Keeping the device awake. Its now enabled
-
-    };
-
-    AgoraRtcEngine.onLeaveChannel = () {
       setState(() {
+        //_users.add(uid);
+        //final info = 'onJoinChannel: $channel, uid: $uid';
+        //Message m = Message(message: info, type: type, user: user,);
+        //_log(info: info, user: documentId, type: 'join');
+        //_infoStrings.add(m);
+      });
+    }, leaveChannel: (stats) {
+      setState(() {
+        // _infoStrings.add('onLeaveChannel');
+        _log(info: 'leaveChannel', type: 'leaveChannel');
         _users.clear();
       });
-    };
-
-    AgoraRtcEngine.onUserJoined = (int uid, int elapsed) {
+    }, userJoined: (uid, elapsed) {
       setState(() {
+        final info = 'userJoined: $uid';
+        //_infoStrings.add(info);
+        _log(info: info, type: 'userJoined');
         _users.add(uid);
       });
-    };
-
-    AgoraRtcEngine.onUserOffline = (int uid, int reason) {
-      if(uid == guestID){
-        setState(() {
-          accepted=false;
-        });
-      }
+    }, userOffline: (uid, elapsed) {
       setState(() {
+        accepted = false;
+        final info = 'userOffline: $uid';
+        // _infoStrings.add(info);
+        _log(info: info, type: 'userOffline');
         _users.remove(uid);
       });
-    };
+    }, firstRemoteVideoFrame: (uid, width, height, elapsed) {
+      setState(() {
+        final info = 'firstRemoteVideo: $uid ${width}x $height';
+        //_infoStrings.add(info);
+        _log(info: info, type: 'firstRemoteVideoFrame');
+      });
+    }));
   }
 
   /// Helper function to get list of native views
   List<Widget> _getRenderViews() {
-    final list = [
-      AgoraRenderWidget(0, local: true, preview: true),
-    ];
-    if(accepted==true) {
-      _users.forEach((int uid) {
-        if(uid!=0){
-          guestID = uid;
-        }
-        list.add(AgoraRenderWidget(uid));
-      });
+    // final list = [
+    //   AgoraRenderWidget(0, local: true, preview: true),
+    // ];
+    // if (accepted == true) {
+    //   _users.forEach((int uid) {
+    //     if (uid != 0) {
+    //       guestID = uid;
+    //     }
+    //     list.add(AgoraRenderWidget(uid));
+    //   });
+    // }
+    // return list;
+    // final List<StatefulWidget> list = [];
+    // if (true) {
+    //   list.add(RtcLocalView.SurfaceView());
+    // }
+    // if (accepted == true) {
+    //   _users.forEach((int uid) => list.add(RtcRemoteView.SurfaceView(uid: uid)));
+    // }
+
+    // if (true) {
+    //   list.add(RtcLocalView.SurfaceView());
+    // }
+    // //_users.forEach((int uid) => list.add(RtcRemoteView.SurfaceView(uid: uid)));
+    // return list;
+    final List<StatefulWidget> list = [];
+    list.add(RtcLocalView.SurfaceView());
+    // if (true) {
+    //   list.add(RtcLocalView.SurfaceView());
+    // }
+    if (accepted == true) {
+      _users.forEach((int uid) => list.add(RtcRemoteView.SurfaceView(uid: uid)));
     }
+
     return list;
   }
 
@@ -162,7 +236,6 @@ class _CallPageState extends State<CallPage>{
   Widget _videoView(view) {
     return Expanded(child: ClipRRect(child: view));
   }
-
 
   /// Video view row wrapper
   Widget _expandedVideoRow(List<Widget> views) {
@@ -174,7 +247,6 @@ class _CallPageState extends State<CallPage>{
     );
   }
 
-
   /// Video layout wrapper
   Widget _viewRows() {
     final views = _getRenderViews();
@@ -183,19 +255,18 @@ class _CallPageState extends State<CallPage>{
       case 1:
         return Container(
             child: Column(
-              children: <Widget>[_videoView(views[0])],
-            ));
+          children: <Widget>[_videoView(views[0])],
+        ));
       case 2:
         return Container(
             child: Column(
-              children: <Widget>[
-                _expandedVideoRow([views[0]]),
-                _expandedVideoRow([views[1]])
-              ],
-            ));
+          children: <Widget>[
+            _expandedVideoRow([views[0]]),
+            _expandedVideoRow([views[1]])
+          ],
+        ));
     }
     return Container();
-
 
     /*    return Container(
         child: Column(
@@ -203,10 +274,9 @@ class _CallPageState extends State<CallPage>{
         ));*/
   }
 
-
-  void popUp() async{
+  void popUp() async {
     setState(() {
-      heart=true;
+      heart = true;
     });
 
     _timer = Timer.periodic(Duration(milliseconds: 125), (Timer t) {
@@ -215,28 +285,32 @@ class _CallPageState extends State<CallPage>{
       });
     });
 
-    Timer(Duration(seconds: 4), () =>
-    {
-      _timer.cancel(),
-      setState(() {
-        heart=false;
-      })
-    });
+    Timer(
+        Duration(seconds: 4),
+        () => {
+              _timer.cancel(),
+              setState(() {
+                heart = false;
+              })
+            });
   }
-  Widget heartPop(){
+
+  Widget heartPop() {
     final size = MediaQuery.of(context).size;
     final confetti = <Widget>[];
     for (var i = 0; i < _numConfetti; i++) {
       final height = _random.nextInt(size.height.floor());
       final width = 20;
-      confetti.add(HeartAnim(height % 200.0,
-          width.toDouble(), 0.5,));
+      confetti.add(HeartAnim(
+        height % 200.0,
+        width.toDouble(),
+        0.5,
+      ));
     }
-
 
     return Container(
       child: Padding(
-        padding: const EdgeInsets.only(bottom:20),
+        padding: const EdgeInsets.only(bottom: 20),
         child: Align(
           alignment: Alignment.bottomRight,
           child: Container(
@@ -250,8 +324,6 @@ class _CallPageState extends State<CallPage>{
       ),
     );
   }
-
-
 
   /// Info panel to show logs
   Widget messageList() {
@@ -267,100 +339,94 @@ class _CallPageState extends State<CallPage>{
             itemCount: _infoStrings.length,
             itemBuilder: (BuildContext context, int index) {
               if (_infoStrings.isEmpty) {
-                return null;
+                // return null;
               }
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   vertical: 3,
                   horizontal: 10,
                 ),
-                child: (_infoStrings[index].type=='join')? Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: <Widget>[
-                      CachedNetworkImage(
-                        imageUrl: _infoStrings[index].image,
-                        imageBuilder: (context, imageProvider) => Container(
-                          width: 32.0,
-                          height: 32.0,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                                image: imageProvider, fit: BoxFit.cover),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const  EdgeInsets.symmetric(
-                          horizontal: 8,
-                        ),
-                        child: Text(
-                          '${_infoStrings[index].user} joined',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : (_infoStrings[index].type=='message')?
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: <Widget>[
-                      CachedNetworkImage(
-                        imageUrl: _infoStrings[index].image,
-                        imageBuilder: (context, imageProvider) => Container(
-                          width: 32.0,
-                          height: 32.0,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                                image: imageProvider, fit: BoxFit.cover),
-                          ),
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Padding(
-                            padding: const  EdgeInsets.symmetric(
-                              horizontal: 8,
+                child: (_infoStrings[index].type == 'join')
+                    ? Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.max,
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: <Widget>[
+                            CachedNetworkImage(
+                              imageUrl: _infoStrings[index].image,
+                              imageBuilder: (context, imageProvider) => Container(
+                                width: 32.0,
+                                height: 32.0,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              _infoStrings[index].user,
-                              style: TextStyle(
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                '${_infoStrings[index].user} entrou',
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
-                                fontWeight: FontWeight.bold
+                                ),
                               ),
                             ),
-                          ),
-                          SizedBox(height: 5,),
-                          Padding(
-                            padding: const  EdgeInsets.symmetric(
-                              horizontal: 8,
-                            ),
-                            child: Text(
-                              _infoStrings[index].message,
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       )
-                    ],
-                  ),
-                )
-                    :null,
+                    : (_infoStrings[index].type == 'message')
+                        ? Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.max,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: <Widget>[
+                                CachedNetworkImage(
+                                  imageUrl: _infoStrings[index].image,
+                                  imageBuilder: (context, imageProvider) => Container(
+                                    width: 32.0,
+                                    height: 32.0,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+                                    ),
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Text(
+                                        _infoStrings[index].user,
+                                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: 5,
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Text(
+                                        _infoStrings[index].message,
+                                        style: TextStyle(color: Colors.white, fontSize: 14),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              ],
+                            ),
+                          )
+                        : null,
               );
             },
           ),
@@ -370,46 +436,48 @@ class _CallPageState extends State<CallPage>{
   }
 
   void _onSwitchCamera() {
-    AgoraRtcEngine.switchCamera();
+    _engine.switchCamera();
   }
 
   Future<bool> _willPopCallback() async {
-    if(personBool==true){
+    if (personBool == true) {
       setState(() {
-        personBool=false;
+        personBool = false;
       });
-
-    }else {
+    } else {
       setState(() {
         tryingToEnd = !tryingToEnd;
       });
     }
-    return false;// return true if the route to be popped
+    return false; // return true if the route to be popped
   }
 
-  Widget _endCall(){
+  Widget _endCall() {
     return Container(
       width: MediaQuery.of(context).size.width,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(15,15,15,15),
+            padding: const EdgeInsets.fromLTRB(15, 15, 15, 15),
             child: GestureDetector(
               onTap: () {
-                if(personBool==true){
+                if (personBool == true) {
                   setState(() {
-                    personBool=false;
+                    personBool = false;
                   });
                 }
                 setState(() {
-                  if(waiting==true){
-                    waiting=false;
+                  if (waiting == true) {
+                    waiting = false;
                   }
-                  tryingToEnd=true;
+                  tryingToEnd = true;
                 });
               },
-              child: Text('END',style: TextStyle(color: Colors.indigo,fontSize: 20,fontWeight: FontWeight.bold),),
+              child: Text(
+                'Sair',
+                style: TextStyle(color: Colors.indigo, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -417,7 +485,7 @@ class _CallPageState extends State<CallPage>{
     );
   }
 
-  Widget _liveText(){
+  Widget _liveText() {
     return Padding(
       padding: const EdgeInsets.all(15.0),
       child: Container(
@@ -428,24 +496,21 @@ class _CallPageState extends State<CallPage>{
             Container(
               decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: <Color>[
-                      Colors.indigo, Colors.blue
-                    ],
+                    colors: <Color>[Colors.indigo, Colors.blue],
                   ),
-                  borderRadius: BorderRadius.all(Radius.circular(4.0))
-              ),
+                  borderRadius: BorderRadius.all(Radius.circular(4.0))),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5.0,horizontal: 8.0),
-                child: Text('LIVE',style: TextStyle(color: Colors.white,fontSize: 15,fontWeight: FontWeight.bold),),
+                padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 8.0),
+                child: Text(
+                  'LIVE',
+                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(left:5,right:10),
+              padding: const EdgeInsets.only(left: 5, right: 10),
               child: Container(
-                  decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(.6),
-                      borderRadius: BorderRadius.all(Radius.circular(4.0))
-                  ),
+                  decoration: BoxDecoration(color: Colors.black.withOpacity(.6), borderRadius: BorderRadius.all(Radius.circular(4.0))),
                   height: 28,
                   alignment: Alignment.center,
                   child: Padding(
@@ -454,13 +519,21 @@ class _CallPageState extends State<CallPage>{
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
-                        Icon(FontAwesomeIcons.eye,color: Colors.white,size: 13,),
-                        SizedBox(width: 5,),
-                        Text('$userNo',style: TextStyle(color: Colors.white,fontSize: 11),),
+                        Icon(
+                          FontAwesomeIcons.eye,
+                          color: Colors.white,
+                          size: 13,
+                        ),
+                        SizedBox(
+                          width: 5,
+                        ),
+                        Text(
+                          '$userNo',
+                          style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
                       ],
                     ),
-                  )
-              ),
+                  )),
             ),
           ],
         ),
@@ -468,24 +541,21 @@ class _CallPageState extends State<CallPage>{
     );
   }
 
-  Widget endLive(){
+  Widget endLive() {
     return Container(
       color: Colors.black.withOpacity(0.5),
       child: Stack(
         children: <Widget>[
           Align(
-              alignment: Alignment.center,
-              child: Padding(
-                padding: const EdgeInsets.all(30.0),
-                child: Text(
-                  'Are you sure you want to end your live video?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize:20
-                  ),
-                ),
+            alignment: Alignment.center,
+            child: Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: Text(
+                'Tem certeza de que deseja encerrar a live?',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white, fontSize: 20),
               ),
+            ),
           ),
           Container(
             alignment: Alignment.bottomCenter,
@@ -494,20 +564,23 @@ class _CallPageState extends State<CallPage>{
               children: <Widget>[
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 8.0,right: 4.0,top:8.0,bottom:8.0),
+                    padding: const EdgeInsets.only(left: 8.0, right: 4.0, top: 8.0, bottom: 8.0),
                     child: RaisedButton(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        child: Text('End Video',style: TextStyle(color: Colors.white),),
+                        child: Text(
+                          'Finalizar live',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                       elevation: 2.0,
                       color: Colors.blue,
-                      onPressed: () async{
+                      onPressed: () async {
                         await Wakelock.disable();
                         _logout();
                         _leaveChannel();
-                        AgoraRtcEngine.leaveChannel();
-                        AgoraRtcEngine.destroy();
+                        _engine.leaveChannel();
+                        _engine.destroy();
                         FireStoreClass.deleteUser(username: channelName);
                         Navigator.pop(context);
                       },
@@ -516,17 +589,20 @@ class _CallPageState extends State<CallPage>{
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 4.0,right: 8.0,top:8.0,bottom:8.0),
+                    padding: const EdgeInsets.only(left: 4.0, right: 8.0, top: 8.0, bottom: 8.0),
                     child: RaisedButton(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        child: Text('Cancel',style: TextStyle(color:Colors.white),),
+                        child: Text(
+                          'Cancelar',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                       elevation: 2.0,
                       color: Colors.grey,
-                      onPressed: (){
+                      onPressed: () {
                         setState(() {
-                          tryingToEnd=false;
+                          tryingToEnd = false;
                         });
                       },
                     ),
@@ -540,40 +616,48 @@ class _CallPageState extends State<CallPage>{
     );
   }
 
-  Widget personList(){
+  Widget personList() {
     return Container(
       alignment: Alignment.bottomRight,
       child: Container(
-        height: 2*MediaQuery.of(context).size.height/3,
+        height: 2 * MediaQuery.of(context).size.height / 3,
         width: MediaQuery.of(context).size.height,
         decoration: new BoxDecoration(
           color: Colors.grey[850],
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(25),
-            topRight: Radius.circular(25)
-          ),
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(25), topRight: Radius.circular(25)),
         ),
         child: Stack(
           children: <Widget>[
             Container(
-              height: 2*MediaQuery.of(context).size.height/3 -50,
+              height: 2 * MediaQuery.of(context).size.height / 3 - 50,
               child: Column(
                 children: <Widget>[
-                  SizedBox(height: 10,),
+                  SizedBox(
+                    height: 10,
+                  ),
                   Container(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     width: MediaQuery.of(context).size.width,
                     alignment: Alignment.center,
-                    child: Text('Go Live with',style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,color: Colors.white),),
+                    child: Text(
+                      'Entrar ao vivo com',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
                   ),
-                  SizedBox(height: 10,),
-                  Divider(color: Colors.grey[800],thickness: 0.5,height: 0,),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Divider(
+                    color: Colors.grey[800],
+                    thickness: 0.5,
+                    height: 0,
+                  ),
                   Container(
                     padding: EdgeInsets.symmetric(vertical: 20, horizontal: 15),
                     width: double.infinity,
                     color: Colors.grey[900],
                     child: Text(
-                      'When you go live with someone, anyone who can watch their live videos will be able to watch it too.',
+                      'quando você vai ao vivo com alguém, qualquer pessoa que puder assistir aos vídeos ao vivo também poderá assistir.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
@@ -581,28 +665,24 @@ class _CallPageState extends State<CallPage>{
                       ),
                     ),
                   ),
-                  anyPerson==true?Container(
-                      padding: EdgeInsets.symmetric(vertical: 10,horizontal: 15),
-                      width: double.maxFinite,
-                      child: Text(
-                        'INVITE',
-                        style: TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold
+                  anyPerson == true
+                      ? Container(
+                          padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                          width: double.maxFinite,
+                          child: Text(
+                            'INVITE',
+                            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.start,
+                          ))
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            'No Viewers',
+                            style: TextStyle(color: Colors.grey[400]),
+                          ),
                         ),
-                        textAlign: TextAlign.start,
-                      )
-                  ):
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Text('No Viewers',style: TextStyle(color: Colors.grey[400]),),
-                  ),
                   Expanded(
-                    child: ListView(
-                        shrinkWrap: true,
-                        scrollDirection: Axis.vertical,
-                        children: getUserStories()
-                    ),
+                    child: ListView(shrinkWrap: true, scrollDirection: Axis.vertical, children: getUserStories()),
                   ),
                 ],
               ),
@@ -610,9 +690,9 @@ class _CallPageState extends State<CallPage>{
             Align(
               alignment: Alignment.bottomCenter,
               child: GestureDetector(
-                onTap: (){
+                onTap: () {
                   setState(() {
-                    personBool= !personBool;
+                    personBool = !personBool;
                   });
                 },
                 child: Container(
@@ -622,9 +702,12 @@ class _CallPageState extends State<CallPage>{
                   child: Stack(
                     children: <Widget>[
                       Container(
-                        height: double.maxFinite,
-                        alignment: Alignment.center ,
-                        child: Text('Cancel',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white),)),
+                          height: double.maxFinite,
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          )),
                     ],
                   ),
                 ),
@@ -650,15 +733,15 @@ class _CallPageState extends State<CallPage>{
       child: Column(
         children: <Widget>[
           GestureDetector(
-            onTap: ()async{
+            onTap: () async {
               setState(() {
-                waiting=true;
+                waiting = true;
               });
               await _channel.sendMessage(AgoraRtmMessage.fromText('d1a2v3i4s5h6 ${users.username}'));
             },
             child: Container(
-              padding: EdgeInsets.only(left: 15),
-                color: Colors.grey[850 ],
+                padding: EdgeInsets.only(left: 15),
+                color: Colors.grey[850],
                 child: Row(
                   children: <Widget>[
                     CachedNetworkImage(
@@ -668,8 +751,7 @@ class _CallPageState extends State<CallPage>{
                         height: 40.0,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          image: DecorationImage(
-                              image: imageProvider, fit: BoxFit.cover),
+                          image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
                         ),
                       ),
                     ),
@@ -677,32 +759,39 @@ class _CallPageState extends State<CallPage>{
                       padding: const EdgeInsets.only(left: 10),
                       child: Column(
                         children: <Widget>[
-                          Text(users.username,style: TextStyle(fontSize: 18,color: Colors.white),),
-                          SizedBox(height: 2,),
-                          Text(users.name,style: TextStyle(color: Colors.grey),),
+                          Text(
+                            users.username,
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
+                          SizedBox(
+                            height: 2,
+                          ),
+                          Text(
+                            users.name,
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ],
                       ),
                     )
                   ],
-                )
-            ),
+                )),
           ),
         ],
       ),
     );
   }
 
-  Widget stopSharing(){
+  Widget stopSharing() {
     return Container(
-      height: MediaQuery.of(context).size.height/2+40,
+      height: MediaQuery.of(context).size.height / 2 + 40,
       alignment: Alignment.bottomRight,
       child: Padding(
         padding: const EdgeInsets.only(right: 10),
         child: MaterialButton(
           minWidth: 0,
-          onPressed: ()async{
+          onPressed: () async {
             stopFunction();
-            await _channel.sendMessage(AgoraRtmMessage.fromText('E1m2I3l4i5E6 stoping'));
+            await _channel.sendMessage(AgoraRtmMessage.fromText('${widget.channelName} stoping'));
           },
           child: Icon(
             Icons.clear,
@@ -718,51 +807,52 @@ class _CallPageState extends State<CallPage>{
     );
   }
 
-  Widget guestWaiting(){
+  Widget guestWaiting() {
     return Container(
       alignment: Alignment.bottomRight,
       child: Container(
-        height: 100,
-        width: double.maxFinite,
-        alignment: Alignment.center,
-        color: Colors.black,
-        child: Wrap(
-          children: <Widget>[
-            Text('Waiting for the user to accept...',style: TextStyle(color: Colors.white,fontSize: 20),)
-          ],
-        )
-      ),
+          height: 100,
+          width: double.maxFinite,
+          alignment: Alignment.center,
+          color: Colors.black,
+          child: Wrap(
+            children: <Widget>[
+              Text(
+                'Waiting for the user to accept...',
+                style: TextStyle(color: Colors.white, fontSize: 20),
+              )
+            ],
+          )),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-        child:SafeArea(
+        child: SafeArea(
           child: Scaffold(
             body: Container(
               color: Colors.black,
               child: Center(
                 child: Stack(
                   children: <Widget>[
-                    _viewRows(),// Video Widget
-                    if(tryingToEnd==false)_endCall(),
-                    if(tryingToEnd==false)_liveText(),
-                    if(heart == true && tryingToEnd==false) heartPop(),
-                    if(tryingToEnd==false) _bottomBar(), // send message
-                    if(tryingToEnd==false)messageList(),
-                    if(tryingToEnd==true)endLive(),// view message
-                    if(personBool==true && waiting==false) personList(),
-                    if(accepted == true) stopSharing(),
-                    if(waiting == true) guestWaiting(),
+                    _viewRows(), // Video Widget
+                    if (tryingToEnd == false) _endCall(),
+                    if (tryingToEnd == false) _liveText(),
+                    if (heart == true && tryingToEnd == false) heartPop(),
+                    if (tryingToEnd == false) _bottomBar(), // send message
+                    if (tryingToEnd == false) messageList(),
+                    if (tryingToEnd == true) endLive(), // view message
+                    if (personBool == true && waiting == false) personList(),
+                    if (accepted == true) stopSharing(),
+                    if (waiting == true) guestWaiting(),
                   ],
                 ),
               ),
             ),
           ),
         ),
-        onWillPop: _willPopCallback
-    );
+        onWillPop: _willPopCallback);
   }
 // Agora RTM
 
@@ -775,53 +865,46 @@ class _CallPageState extends State<CallPage>{
       child: Container(
         color: Colors.black,
         child: Padding(
-          padding: const EdgeInsets.only(left:8,top:5,right: 8,bottom: 5),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: <Widget>[
-              new Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0.0,0,0,0),
-                    child: new TextField(
-                      cursorColor: Colors.blue,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: _sendMessage,
-                      style: TextStyle(color: Colors.white),
-                      controller: _channelMessageController,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: 'Comment',
-                        hintStyle: TextStyle(color: Colors.white),
-                        enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(50.0),
-                            borderSide: BorderSide(color: Colors.white)
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(50.0),
-                            borderSide: BorderSide(color: Colors.white)
-                        ),
-                      )
-                    ),
-                  )
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4.0, 0, 0, 0),
-                child: MaterialButton(
-                  minWidth: 0,
-                  onPressed: _toggleSendChannelMessage,
-                  child: Icon(
-                    Icons.send,
-                    color: Colors.white,
-                    size: 20.0,
-                  ),
-                  shape: CircleBorder(),
-                  elevation: 2.0,
-                  color: Colors.blue[400],
-                  padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.only(left: 8, top: 5, right: 8, bottom: 5),
+          child: Row(mainAxisAlignment: MainAxisAlignment.end, children: <Widget>[
+            new Expanded(
+                child: Padding(
+              padding: const EdgeInsets.fromLTRB(0.0, 0, 0, 0),
+              child: new TextField(
+                  cursorColor: Colors.blue,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (value) {
+                    _sendMessage(value);
+                  },
+                  style: TextStyle(color: Colors.white),
+                  controller: _channelMessageController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Comment',
+                    hintStyle: TextStyle(color: Colors.white),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(50.0), borderSide: BorderSide(color: Colors.white)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(50.0), borderSide: BorderSide(color: Colors.white)),
+                  )),
+            )),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4.0, 0, 0, 0),
+              child: MaterialButton(
+                minWidth: 0,
+                onPressed: _toggleSendChannelMessage,
+                child: Icon(
+                  Icons.send,
+                  color: Colors.white,
+                  size: 20.0,
                 ),
+                shape: CircleBorder(),
+                elevation: 2.0,
+                color: Colors.blue[400],
+                padding: const EdgeInsets.all(12.0),
               ),
-              if(accepted==false)Padding(
+            ),
+            if (accepted == false)
+              Padding(
                 padding: const EdgeInsets.fromLTRB(4.0, 0, 0, 0),
                 child: MaterialButton(
                   minWidth: 0,
@@ -833,28 +916,27 @@ class _CallPageState extends State<CallPage>{
                   ),
                   shape: CircleBorder(),
                   elevation: 2.0,
-                  color:Colors.blue[400] ,
+                  color: Colors.blue[400],
                   padding: const EdgeInsets.all(12.0),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4.0, 0, 0, 0),
-                child: MaterialButton(
-                  minWidth: 0,
-                  onPressed: _onSwitchCamera,
-                  child: Icon(
-                    Icons.switch_camera,
-                    color: Colors.blue[400],
-                    size: 20.0,
-                  ),
-                  shape: CircleBorder(),
-                  elevation: 2.0,
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(12.0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4.0, 0, 0, 0),
+              child: MaterialButton(
+                minWidth: 0,
+                onPressed: _onSwitchCamera,
+                child: Icon(
+                  Icons.switch_camera,
+                  color: Colors.blue[400],
+                  size: 20.0,
                 ),
-              )
-            ]
-          ),
+                shape: CircleBorder(),
+                elevation: 2.0,
+                color: Colors.white,
+                padding: const EdgeInsets.all(12.0),
+              ),
+            )
+          ]),
         ),
       ),
     );
@@ -866,12 +948,11 @@ class _CallPageState extends State<CallPage>{
     });
   }
 
-  void stopFunction(){
+  void stopFunction() {
     setState(() {
-      accepted= false;
+      accepted = false;
     });
   }
-
 
   void _logout() async {
     try {
@@ -882,31 +963,44 @@ class _CallPageState extends State<CallPage>{
     }
   }
 
-
-
   void _leaveChannel() async {
     try {
       await _channel.leave();
       //_log(info: 'Leave channel success.',type: 'leave');
       _client.releaseChannel(_channel.channelId);
-      _channelMessageController.text = null;
-
+      _channelMessageController.clear();
     } catch (errorCode) {
-     // _log(info: 'Leave channel error: ' + errorCode.toString(),type: 'error');
+      // _log(info: 'Leave channel error: ' + errorCode.toString(),type: 'error');
     }
   }
+
+  // void _toggleSendChannelMessage() async {
+  //   String text = _channelMessageController.text;
+  //   if (text.isEmpty) {
+  //     return;
+  //   }
+  //   try {
+  //     _channelMessageController.clear();
+  //     await _channel.sendMessage(AgoraRtmMessage.fromText(text));
+  //     _log(user: widget.channelName, info: text, type: 'message');
+  //   } catch (errorCode) {
+  //     //_log(info: 'Send channel message error: ' + errorCode.toString(), type: 'error');
+  //   }
+  // }
 
   void _toggleSendChannelMessage() async {
     String text = _channelMessageController.text;
     if (text.isEmpty) {
+      print('Please input text to send.');
       return;
     }
     try {
-      _channelMessageController.clear();
       await _channel.sendMessage(AgoraRtmMessage.fromText(text));
-      _log(user: widget.channelName, info: text,type: 'message');
+      _log(user: widget.channelName, info: text, type: 'message');
+      _channelMessageController.clear();
     } catch (errorCode) {
-      //_log(info: 'Send channel message error: ' + errorCode.toString(), type: 'error');
+      _log(info: 'Send channel message error: ' + errorCode.toString(), type: 'error');
+      print('Send channel message error: ' + errorCode.toString());
     }
   }
 
@@ -917,93 +1011,154 @@ class _CallPageState extends State<CallPage>{
     try {
       _channelMessageController.clear();
       await _channel.sendMessage(AgoraRtmMessage.fromText(text));
-      _log(user: widget.channelName, info:text,type: 'message');
+      _log(user: widget.channelName, info: text, type: 'message');
     } catch (errorCode) {
-     // _log('Send channel message error: ' + errorCode.toString());
+      _log(info: 'Send channel message error: ' + errorCode.toString());
     }
   }
 
+  // void _createClient() async {
+  //   _client = await AgoraRtmClient.createInstance('b42ce8d86225475c9558e478f1ed4e8e');
+  //   _client.onMessageReceived = (AgoraRtmMessage message, String peerId) {
+  //     _log(user: peerId, info: message.text, type: 'message');
+  //   };
+  //   _client.onConnectionStateChanged = (int state, int reason) {
+  //     if (state == 5) {
+  //       _client.logout();
+  //       //_log('Logout.');
+  //       setState(() {
+  //         _isLogin = false;
+  //       });
+  //     }
+  //   };
+  //   await _client.login(null, widget.channelName);
+  //   _channel = await _createChannel(widget.channelName);
+  //   await _channel.join();
+  // }
+
   void _createClient() async {
-    _client =
-    await AgoraRtmClient.createInstance('b42ce8d86225475c9558e478f1ed4e8e');
+    _client = await AgoraRtmClient.createInstance(appId);
     _client.onMessageReceived = (AgoraRtmMessage message, String peerId) {
-      _log(user: peerId,  info: message.text, type: 'message');
+      _log(user: peerId, info: message.text, type: 'message');
     };
     _client.onConnectionStateChanged = (int state, int reason) {
+      print('Connection state changed: ' + state.toString() + ', reason: ' + reason.toString());
       if (state == 5) {
         _client.logout();
-        //_log('Logout.');
+        print('Logout.');
         setState(() {
           _isLogin = false;
         });
       }
     };
-    await _client.login(null, widget.channelName );
-    _channel = await _createChannel(widget.channelName);
-    await _channel.join();
+
+    _toggleLogin();
+    _toggleJoinChannel();
   }
 
+  void _toggleLogin() async {
+    if (!_isLogin) {
+      try {
+        await _client.login(null, widget.channelName);
+        print('Login success: ' + widget.channelName);
+        setState(() {
+          _isLogin = true;
+        });
+      } catch (errorCode) {
+        print('Login error: ' + errorCode.toString());
+      }
+    }
+  }
+
+  void _toggleJoinChannel() async {
+    try {
+      _channel = await _createChannel(widget.channelName);
+      await _channel.join();
+      print('Join channel success.');
+
+      setState(() {
+        _isInChannel = true;
+      });
+    } catch (errorCode) {
+      print('Join channel error: ' + errorCode.toString());
+    }
+  }
+
+  // Future<AgoraRtmChannel> _createChannel(String name) async {
+  //   AgoraRtmChannel channel = await _client.createChannel(name);
+  //   channel.onMemberJoined = (AgoraRtmMember member) {
+  //     print("Member joined: " + member.userId + ', channel: ' + member.channelId);
+  //   };
+  //   channel.onMemberLeft = (AgoraRtmMember member) {
+  //     print("Member left: " + member.userId + ', channel: ' + member.channelId);
+  //   };
+  //   channel.onMessageReceived = (AgoraRtmMessage message, AgoraRtmMember member) {
+  //     _log(info: 'Member joined: ', user: member.userId, type: 'join');
+  //   };
+  //   return channel;
+  // }
   Future<AgoraRtmChannel> _createChannel(String name) async {
-    AgoraRtmChannel channel = await _client.createChannel(name);
-    channel.onMemberJoined = (AgoraRtmMember member) async {
+    // AgoraRtmChannel channel = await _client!.createChannel(name);
+    _channel = await _client.createChannel(name);
+    _channel.onMemberJoined = (AgoraRtmMember member) async {
       var img = await FireStoreClass.getImage(username: member.userId);
       var nm = await FireStoreClass.getName(username: member.userId);
       setState(() {
         userList.add(new User(username: member.userId, name: nm, image: img));
-        if(userList.length>0)
-          anyPerson =true;
+        if (userList.length > 0) anyPerson = true;
       });
       userMap.putIfAbsent(member.userId, () => img);
       var len;
       _channel.getMembers().then((value) {
         len = value.length;
         setState(() {
-          userNo= len-1 ;
+          userNo = len - 1;
         });
       });
 
-      _log(info: 'Member joined: ',  user: member.userId,type: 'join');
+      _log(info: 'Member joined: ', user: member.userId, type: 'join');
     };
-    channel.onMemberLeft = (AgoraRtmMember member) {
+    _channel.onMemberLeft = (AgoraRtmMember member) {
       var len;
       setState(() {
         userList.removeWhere((element) => element.username == member.userId);
-        if(userList.length==0)
-          anyPerson = false;
+        if (userList.length == 0) anyPerson = false;
       });
 
       _channel.getMembers().then((value) {
         len = value.length;
         setState(() {
-          userNo= len-1 ;
+          userNo = len - 1;
         });
       });
     };
-    channel.onMessageReceived =
-        (AgoraRtmMessage message, AgoraRtmMember member) {
-      _log(user: member.userId, info: message.text,type: 'message');
+    _channel.onMessageReceived = (AgoraRtmMessage message, AgoraRtmMember member) {
+      _log(user: member.userId, info: message.text, type: 'message');
     };
-    return channel;
+    return _channel;
   }
 
-  void _log({String info,String type,String user}) {
-    if(type=='message' && info.contains('m1x2y3z4p5t6l7k8')){
+  void _log({String info, String type, String user}) {
+    if (type == 'message' && info.contains('m1x2y3z4p5t6l7k8')) {
       popUp();
-    }
-    else if(type=='message' && info.contains('k1r2i3s4t5i6e7')){
+    } else if (type == 'message' && info.contains('k1r2i3s4t5i6e7')) {
       setState(() {
-        accepted=true;
-        personBool=false;
-        personBool=false;
-        waiting= false;
+        accepted = true;
+        personBool = false;
+        personBool = false;
+        waiting = false;
       });
     }
-    else if(type=='message' && info.contains('E1m2I3l4i5E6')){
+    // else if (info.contains('firstRemoteVideo')) {
+    //   setState(() {
+    //     _users.add(int.parse(user));
+    //   });
+    // }
+    else if (type == 'message' && info.contains('E1m2I3l4i5E6')) {
       stopFunction();
-    }
-    else if(type=='message' && info.contains('R1e2j3e4c5t6i7o8n9e0d')){
+    } else if (type == 'message' && info.contains('R1e2j3e4c5t6i7o8n9e0d')) {
       setState(() {
-        waiting=false;
+        waiting = false;
       });
       /*FlutterToast.showToast(
           msg: "Guest Declined",
@@ -1015,11 +1170,15 @@ class _CallPageState extends State<CallPage>{
           fontSize: 16.0
       );*/
 
-    }
-    else {
-      var image = userMap[user];
-      Message m = new Message(
-          message: info, type: type, user: user, image: image);
+    } else {
+      var image;
+      if (user == widget.channelName) {
+        image = userMap[widget.channelName];
+      } else {
+        image = userMap[user];
+      }
+      Message m = Message(message: info, type: type, user: user, image: image);
+      //String m = info;
       setState(() {
         _infoStrings.insert(0, m);
       });

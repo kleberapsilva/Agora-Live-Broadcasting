@@ -1,4 +1,3 @@
-
 import 'package:path/path.dart' as Path;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,73 +6,61 @@ import 'dart:async';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-class FireStoreClass{
-  static final Firestore _db = Firestore.instance;
+class FireStoreClass {
+  //static final Firestore _db = Firestore.instance;
+  static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final liveCollection = 'liveuser';
   static final userCollection = 'users';
   static final emailCollection = 'user_email';
 
-  static void createLiveUser({name, id, time,image}) async{
-    final snapShot = await _db.collection(liveCollection).document(name).get();
-    if(snapShot.exists){
-      await _db.collection(liveCollection).document(name).updateData({
-        'name': name,
-        'channel': id,
-        'time':time,
-        'image': image
-      });
+  static void createLiveUser({name, id, time, image}) async {
+    final snapShot = await _db.collection(liveCollection).doc(name).get();
+    if (snapShot.exists) {
+      await _db.collection(liveCollection).doc(name).update({'name': name, 'channel': id, 'time': time, 'image': image});
     } else {
-      await _db.collection(liveCollection).document(name).setData({
-        'name': name,
-        'channel': id,
-        'time':time,
-        'image': image
-      });
+      await _db.collection(liveCollection).doc(name).set({'name': name, 'channel': id, 'time': time, 'image': image});
     }
   }
 
-  static Future<String> getImage ({username}) async{
-    final snapShot = await _db.collection(userCollection).document(username).get();
-    return snapShot.data['image'];
+  static Future<String> getImage({username}) async {
+    final snapShot = await _db.collection(userCollection).doc(username).get();
+    return snapShot['image'];
   }
 
-  static Future<String> getName ({username}) async{
-    final snapShot = await _db.collection(userCollection).document(username).get();
-    return snapShot.data['name'];
+  static Future<String> getName({username}) async {
+    final snapShot = await _db.collection(userCollection).doc(username).get();
+    return snapShot['name'];
   }
 
-
-  static Future<bool> checkUsername({username}) async{
-    final snapShot = await _db.collection(userCollection).document(username).get();
+  static Future<bool> checkUsername({username}) async {
+    final snapShot = await _db.collection(userCollection).doc(username).get();
     //print('Xperion ${snapShot.exists} $username');
-    if(snapShot.exists) {
+    if (snapShot.exists) {
       return false;
     }
     return true;
   }
 
-  static Future<void> regUser({name, email, username, image}) async{
+  static Future<void> regUser({name, email, username, image}) async {
+    Reference storageReference = FirebaseStorage.instance.ref().child('$email/${Path.basename(image.path)}');
+    UploadTask uploadTask = storageReference.putFile(image);
+    await uploadTask.resume(); //  Image Upload code
 
-    StorageReference storageReference = FirebaseStorage.instance
-        .ref()
-        .child('$email/${Path.basename(image.path)}');
-    StorageUploadTask uploadTask = storageReference.putFile(image);
-    await uploadTask.onComplete;                                    //  Image Upload code
-
-    await storageReference.getDownloadURL().then((fileURL) async{   // To fetch the uploaded data's url
+    await storageReference.getDownloadURL().then((fileURL) async {
+      // To fetch the uploaded data's url
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('name', name);
       await prefs.setString('username', username);
       await prefs.setString('email', email);
       await prefs.setString('image', fileURL);
 
-      await _db.collection(userCollection).document(username).setData({
+      await _db.collection(userCollection).doc(username).set({
         'name': name,
         'email': email,
         'username': username,
         'image': fileURL,
       });
-      await _db.collection(emailCollection).document(email).setData({
+      await _db.collection(emailCollection).doc(email).set({
         'name': name,
         'email': email,
         'username': username,
@@ -81,23 +68,21 @@ class FireStoreClass{
       });
       return true;
     });
-
-
   }
 
-  static void deleteUser({username}) async{
-    await _db.collection('liveuser').document(username).delete();
+  static void deleteUser({username}) async {
+    await _db.collection('liveuser').doc(username).delete();
   }
 
-  static Future<void> getDetails({email}) async{
-    var document = await Firestore.instance.document('user_email/$email').get();
+  static Future<void> getDetails({email}) async {
+    // var document = await Firestore.instance.collection('user_email/$email').document.get();
+    var collection = FirebaseFirestore.instance.collection('user_email');
+    var document = await collection.doc('$email').get();
     var checkData = document.data;
-    if(checkData==null)
-      return;
+    if (checkData == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('name', document.data['name']);
-    await prefs.setString('username', document.data['username']);
-    await prefs.setString('image', document.data['image']);
+    await prefs.setString('name', document['name']);
+    await prefs.setString('username', document['username']);
+    await prefs.setString('image', document['image']);
   }
-
 }

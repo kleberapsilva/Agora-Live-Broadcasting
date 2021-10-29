@@ -1,21 +1,21 @@
-
 import 'package:agorartm/screen/SplashScreen.dart';
 import 'package:agorartm/screen/home.dart';
 import 'package:agorartm/screen/loginScreen.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp])
-      .then((_) {
+
+  await Firebase.initializeApp();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).then((_) {
     runApp(new MyApp());
   });
 }
 
 class MyApp extends StatelessWidget {
-
   // This widget is the root of your application.
 
   final MaterialColor blackColor = const MaterialColor(
@@ -40,29 +40,25 @@ class MyApp extends StatelessWidget {
       title: 'ShareLife',
       color: blackColor,
       home: SplashScreen(),
-      routes: <String, WidgetBuilder>{
-        '/HomeScreen': (BuildContext context) => new MainScreen()
-      },
+      routes: <String, WidgetBuilder>{'/HomeScreen': (BuildContext context) => new MainScreen()},
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
-
   @override
   _MainScreenState createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-
-  var loggedIn=false;
+  var loggedIn = false;
   @override
   void initState() {
     super.initState();
     loadSharedPref();
   }
 
-  void loadSharedPref() async{
+  void loadSharedPref() async {
     final prefs = await SharedPreferences.getInstance();
 
     setState(() {
@@ -70,14 +66,9 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     loadSharedPref();
-    return loggedIn? HomePage(): LoginScreen();
+    return loggedIn ? HomePage() : LoginScreen();
   }
-
-
 }
-

@@ -15,39 +15,36 @@ class RegScreen extends StatefulWidget {
 }
 
 class _RegScreenState extends State<RegScreen> {
-
-
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
-  bool passwordVisible =false;
+  bool passwordVisible = false;
   File _image;
-  bool submitted=false;
-  bool boolEmail = false,boolPass=false,boolName=false,boolUser=false, invalidError =false,passwordError=false;
+  bool submitted = false;
+  bool boolEmail = false, boolPass = false, boolName = false, boolUser = false, invalidError = false, passwordError = false;
 
-  void _submit() async{
-
+  void _submit() async {
     setState(() {
-      submitted=true;
+      submitted = true;
     });
-    if(_image==null){
+    if (_image == null) {
       setState(() {
-        submitted=false;
+        submitted = false;
       });
       imageDialog();
       return;
     }
-    passwordError=false;
-    invalidError=false;
+    passwordError = false;
+    invalidError = false;
     //existsError=false;
     final pass = _passController.text.toString().trim();
     final email = _emailController.text.toString().trim();
     final name = _nameController.text.toString().trim();
     final username = _usernameController.text.toString().trim();
 
-    var result = await registerUser(email: email, name: name, username: username, pass: pass,image: _image);
-    switch(result) {
+    var result = await registerUser(email: email, name: name, username: username, pass: pass, image: _image);
+    switch (result) {
       case 1:
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('login', true);
@@ -56,32 +53,31 @@ class _RegScreenState extends State<RegScreen> {
       case -1:
         usernameError();
         setState(() {
-          submitted=false;
+          submitted = false;
         });
         break;
       case -2:
         setState(() {
           invalidError = true;
-          submitted=false;
+          submitted = false;
         });
         break;
       case -3:
         setState(() {
           emailExists();
-          submitted=false;
+          submitted = false;
         });
         break;
       case -4:
         setState(() {
           passwordError = true;
-          submitted=false;
+          submitted = false;
         });
         break;
     }
-
   }
 
-  void usernameError(){
+  void usernameError() {
     showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -102,16 +98,15 @@ class _RegScreenState extends State<RegScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 30),
-                          child: Text('Username Not Available',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                            textAlign: TextAlign.center,),
+                          padding: const EdgeInsets.only(left: 30, right: 30),
+                          child: Text(
+                            'Username Not Available',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 25,top: 15),
+                          padding: const EdgeInsets.only(left: 30, right: 25, top: 15),
                           child: Text(
                             "The username you entered is not available.",
                             style: TextStyle(color: Colors.white60),
@@ -121,14 +116,21 @@ class _RegScreenState extends State<RegScreen> {
                       ],
                     ),
                   ),
-                  Divider(color: Colors.grey,thickness: 0,height: 0,),
+                  Divider(
+                    color: Colors.grey,
+                    thickness: 0,
+                    height: 0,
+                  ),
                   SizedBox(
                     width: double.infinity,
                     child: FlatButton(
-                      onPressed: (){
+                      onPressed: () {
                         Navigator.pop(context);
                       },
-                      child: Text('Try Again',style: TextStyle(color: Colors.white),),
+                      child: Text(
+                        'Try Again',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   )
                 ],
@@ -138,8 +140,7 @@ class _RegScreenState extends State<RegScreen> {
         });
   }
 
-
-  void imageDialog(){
+  void imageDialog() {
     showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -160,16 +161,15 @@ class _RegScreenState extends State<RegScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 30),
-                          child: Text('Select Image',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                            textAlign: TextAlign.center,),
+                          padding: const EdgeInsets.only(left: 30, right: 30),
+                          child: Text(
+                            'Select Image',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 25,top: 15),
+                          padding: const EdgeInsets.only(left: 30, right: 25, top: 15),
                           child: Text(
                             "Image is not selected for avatar.",
                             style: TextStyle(color: Colors.white60),
@@ -179,14 +179,21 @@ class _RegScreenState extends State<RegScreen> {
                       ],
                     ),
                   ),
-                  Divider(color: Colors.grey,thickness: 0,height: 0,),
+                  Divider(
+                    color: Colors.grey,
+                    thickness: 0,
+                    height: 0,
+                  ),
                   SizedBox(
                     width: double.infinity,
                     child: FlatButton(
-                      onPressed: (){
+                      onPressed: () {
                         Navigator.pop(context);
                       },
-                      child: Text('Try Again',style: TextStyle(color: Colors.white),),
+                      child: Text(
+                        'Try Again',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   )
                 ],
@@ -217,17 +224,15 @@ class _RegScreenState extends State<RegScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 30),
+                          padding: const EdgeInsets.only(left: 30, right: 30),
                           child: Text(
                             'This Email is on Another Account',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                            textAlign: TextAlign.center,),
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(left: 30,right: 25,top: 15),
+                          padding: const EdgeInsets.only(left: 30, right: 25, top: 15),
                           child: Text(
                             "You can log into the account associated with that email.",
                             style: TextStyle(color: Colors.white60),
@@ -237,14 +242,21 @@ class _RegScreenState extends State<RegScreen> {
                       ],
                     ),
                   ),
-                  Divider(color: Colors.grey,thickness: 0,height: 0,),
+                  Divider(
+                    color: Colors.grey,
+                    thickness: 0,
+                    height: 0,
+                  ),
                   SizedBox(
                     width: double.infinity,
                     child: FlatButton(
-                      onPressed: (){
+                      onPressed: () {
                         Navigator.popUntil(context, ModalRoute.withName('/HomeScreen'));
                       },
-                      child: Text('Log in to Existing Account',style: TextStyle(color: Colors.lightBlue[400]),),
+                      child: Text(
+                        'Log in to Existing Account',
+                        style: TextStyle(color: Colors.lightBlue[400]),
+                      ),
                     ),
                   )
                 ],
@@ -253,7 +265,6 @@ class _RegScreenState extends State<RegScreen> {
           );
         });
   }
-
 
   @override
   void initState() {
@@ -264,60 +275,49 @@ class _RegScreenState extends State<RegScreen> {
     _usernameController.addListener(setUser);
   }
 
-  void setEmail(){
-    if(_emailController.text.toString().trim() == ''){
+  void setEmail() {
+    if (_emailController.text.toString().trim() == '') {
       setState(() {
-        boolEmail=false;
+        boolEmail = false;
       });
-    }
-    else
+    } else
       setState(() {
-        boolEmail=true;
+        boolEmail = true;
       });
-
   }
 
-  void setPass(){
-    if(_passController.text.toString().trim() == ''){
+  void setPass() {
+    if (_passController.text.toString().trim() == '') {
       setState(() {
-        boolPass=false;
+        boolPass = false;
       });
-    }
-    else
+    } else
       setState(() {
-        boolPass=true;
+        boolPass = true;
       });
-
   }
 
-  void setName(){
-    if(_nameController.text.toString().trim() == ''){
+  void setName() {
+    if (_nameController.text.toString().trim() == '') {
       setState(() {
-        boolName=false;
+        boolName = false;
       });
-    }
-    else
+    } else
       setState(() {
-        boolName=true;
+        boolName = true;
       });
-
   }
 
-  void setUser(){
-    if(_usernameController.text.toString().trim() == ''){
+  void setUser() {
+    if (_usernameController.text.toString().trim() == '') {
       setState(() {
-        boolUser=false;
+        boolUser = false;
       });
-    }
-    else
+    } else
       setState(() {
-        boolUser=true;
+        boolUser = true;
       });
-
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -327,27 +327,29 @@ class _RegScreenState extends State<RegScreen> {
         child: Column(
           children: <Widget>[
             Container(
-              height: MediaQuery.of(context).size.height -45,
+              height: MediaQuery.of(context).size.height - 45,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                   GestureDetector(
-                    onTap:() {
+                  GestureDetector(
+                    onTap: () {
                       chooseFile();
                     },
-                    child:Container(
+                    child: Container(
                       height: 150,
                       width: 150,
                       child: CircleAvatar(
                         backgroundColor: Colors.transparent,
-                          backgroundImage:  _image==null ?AssetImage('assets/images/dummy.png'):
-                              FileImage(_image),
+                        backgroundImage: _image == null ? AssetImage('assets/images/dummy.png') : FileImage(_image),
+                        // FileImage(_image),
                         //NetworkImage('https://firebasestorage.googleapis.com/v0/b/xperion-vxatbk.appspot.com/o/image_picker82875791.jpg?alt=media&token=09bf83c8-6d3b-4626-9058-85294f457b70'),
                       ),
                     ),
                   ),
-                  SizedBox(height: 13,),
+                  SizedBox(
+                    height: 13,
+                  ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
@@ -365,9 +367,9 @@ class _RegScreenState extends State<RegScreen> {
                             fillColor: Colors.grey[700],
                             filled: true,
                             hintText: 'Email Address',
-                            hintStyle: TextStyle(color: Colors.white,fontSize: 13),
+                            hintStyle: TextStyle(color: Colors.white, fontSize: 13),
                             errorText: invalidError ? 'Please enter a valid email' : null,
-                            errorStyle: TextStyle(color: Colors.red,fontSize: 10),
+                            errorStyle: TextStyle(color: Colors.red, fontSize: 10),
                             focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: Colors.black),
                               borderRadius: BorderRadius.circular(5),
@@ -384,7 +386,6 @@ class _RegScreenState extends State<RegScreen> {
                               borderSide: BorderSide(color: Colors.red),
                               borderRadius: BorderRadius.circular(5),
                             ),
-
                           ),
                         ),
                       ),
@@ -402,9 +403,9 @@ class _RegScreenState extends State<RegScreen> {
                             fillColor: Colors.grey[700],
                             filled: true,
                             hintText: 'Password',
-                            hintStyle: TextStyle(color: Colors.white,fontSize: 13),
+                            hintStyle: TextStyle(color: Colors.white, fontSize: 13),
                             errorText: passwordError ? 'Week Password! Min 6 characters' : null,
-                            errorStyle: TextStyle(color: Colors.red,fontSize: 10),
+                            errorStyle: TextStyle(color: Colors.red, fontSize: 10),
                             focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: Colors.black),
                               borderRadius: BorderRadius.circular(4),
@@ -423,12 +424,8 @@ class _RegScreenState extends State<RegScreen> {
                             ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                passwordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: passwordVisible
-                                    ? Colors.blue
-                                    : Colors.grey,
+                                passwordVisible ? Icons.visibility : Icons.visibility_off,
+                                color: passwordVisible ? Colors.blue : Colors.grey,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -453,7 +450,7 @@ class _RegScreenState extends State<RegScreen> {
                             fillColor: Colors.grey[700],
                             filled: true,
                             hintText: 'Full Name',
-                            hintStyle: TextStyle(color: Colors.white,fontSize: 13),
+                            hintStyle: TextStyle(color: Colors.white, fontSize: 13),
                             focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: Colors.black),
                               borderRadius: BorderRadius.circular(5),
@@ -478,7 +475,7 @@ class _RegScreenState extends State<RegScreen> {
                             fillColor: Colors.grey[700],
                             filled: true,
                             hintText: 'Username',
-                            hintStyle: TextStyle(color: Colors.white,fontSize: 13),
+                            hintStyle: TextStyle(color: Colors.white, fontSize: 13),
                             focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: Colors.black),
                               borderRadius: BorderRadius.circular(5),
@@ -492,31 +489,32 @@ class _RegScreenState extends State<RegScreen> {
                       ),
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(horizontal: 30,vertical: 5),
+                        padding: EdgeInsets.symmetric(horizontal: 30, vertical: 5),
                         child: FlatButton(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4.0),
                           ),
-                          onPressed: (boolPass!=false && boolEmail!=false && boolName!=false && boolUser!=false ) ?_submit : null,
+                          onPressed: (boolPass != false && boolEmail != false && boolName != false && boolUser != false) ? _submit : null,
                           color: Colors.blue,
                           disabledColor: Colors.blue[800],
                           disabledTextColor: Colors.white60,
                           textColor: Colors.white,
                           padding: EdgeInsets.all(15.0),
-                          child: submitted ? SizedBox(
-                            height: 15,
-                            width: 15,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                              :Text(
-                            'Sign Up',
-                            style: TextStyle(
-                              fontSize: 13.0,
-                            ),
-                          ),
+                          child: submitted
+                              ? SizedBox(
+                                  height: 15,
+                                  width: 15,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Sign Up',
+                                  style: TextStyle(
+                                    fontSize: 13.0,
+                                  ),
+                                ),
                         ),
                       ),
                       SizedBox(height: 20.0),
@@ -525,9 +523,8 @@ class _RegScreenState extends State<RegScreen> {
                 ],
               ),
             ),
-
             GestureDetector(
-              onTap: (){
+              onTap: () {
                 Navigator.pop(context);
               },
               child: Container(
@@ -535,13 +532,24 @@ class _RegScreenState extends State<RegScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Divider(color: Colors.white,height: 0,),
-                    SizedBox(height: 15,),
+                    Divider(
+                      color: Colors.white,
+                      height: 0,
+                    ),
+                    SizedBox(
+                      height: 15,
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        Text("Already have an account? ", style: TextStyle(color: Colors.white70,fontSize: 11),),
-                        Text('Log in.',style: TextStyle(color: Colors.white, fontSize: 11,fontWeight: FontWeight.bold),),
+                        Text(
+                          "Already have an account? ",
+                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                        Text(
+                          'Log in.',
+                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
                       ],
                     ),
                   ],
@@ -555,11 +563,17 @@ class _RegScreenState extends State<RegScreen> {
   }
 
   Future chooseFile() async {
+    // final ImagePicker _picker = ImagePicker();
+    // final pickedFile = await _picker.pickImage(
+    //   source: ImageSource.gallery,
+    // );
+    // setState(() {
+    //   _image = pickedFile;
+    // });
     await ImagePicker.pickImage(source: ImageSource.gallery).then((image) {
       setState(() {
         _image = image;
       });
     });
   }
-
 }

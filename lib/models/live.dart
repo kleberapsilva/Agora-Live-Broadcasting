@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class Live {
@@ -7,6 +6,5 @@ class Live {
   int channelId;
   bool me;
 
-
-  Live({this.username, this.me, this.image,this.channelId});
+  Live({this.username, this.me, this.image, this.channelId});
 }
